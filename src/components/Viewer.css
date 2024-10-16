@@ -1,0 +1,38 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Prevents any scrollbars */
+  height: 100%;
+  width: 100%;
+}
+
+.controls {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10; /* Ensure the controls appear above the canvas */
+  background-color: rgba(0, 0, 0, 0.873);
+  padding: 10px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.ribbon-button {
+  background-color: white;
+  border: none;
+  padding: 10px 15px;
+  margin: 0 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: black;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
+}
+
+.ribbon-button:hover {
+  background-color: #cccccc;
+}
