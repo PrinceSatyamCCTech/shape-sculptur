@@ -15,4 +15,4 @@ const Button = (
   return btn;
 };
 
-export default CreateButton;
+export default Button;
