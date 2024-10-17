@@ -1,10 +1,10 @@
-import Viewer from "./components/Viewer";
+import ShapeShifter from "./components/ShapeShifter";
 
 const App = () => {
 
   return (
     <div>
-      <Viewer />
+      <ShapeShifter />
     </div>
   );
 };
