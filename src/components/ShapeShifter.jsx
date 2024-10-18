@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as BABYLON from "@babylonjs/core";
+import * as GUI from "@babylonjs/gui";
 import earcut from "earcut";
 import "./ShapeShifter.css";
 import Viewer from "./Viewer";
+import CustomButton from "./CustomButton";
 
 const ShapeShifter = () => {
   const canvasRef = useRef(null);
@@ -160,6 +162,56 @@ const ShapeShifter = () => {
       }
     };
 
+    // Create an advanced texture for GUI elements that covers the entire screen
+    const advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI(
+      "UI",
+      true,
+      scene
+    );
+
+    const draw = CustomButton("Draw", advancedTexture);
+    draw.top = "45%";
+    draw.left = "-18%";
+    // Toggle draw mode when the button is clicked
+    draw.onPointerDownObservable.add(() => {
+      if(drawingMode) setDrawingMode(false);
+      else setDrawingMode(true);
+    });
+
+    // Create an "Extrude" button using the CreateButton function and attach it to the advanced texture
+    const extrudeButton = CustomButton("Extrude", advancedTexture);
+    extrudeButton.top = "45%";
+    extrudeButton.left = "-95";
+    extrudeButton.onPointerDownObservable.add(() => {
+      // Toggle extrudeActive mode when the button is clicked
+      if (extrudingMode) setExtrudingMode(false);
+      else setExtrudingMode(true);
+    });
+
+    // Create a "Move" button using the CustomButton function and attach it to the advanced texture
+    const move = CustomButton("Move", advancedTexture);
+    move.top = "45%";
+    move.left = "6%";
+    move.onPointerDownObservable.add(() => {
+      // Toggle moveActive mode when the button is clicked
+      if (moveMode) setMoveMode(false);
+      else setMoveMode(true);
+    });
+
+    // Create a "Move Vertices" button using the CustomButton function and attach it to the advanced texture
+    const moveVerts = CustomButton("Move Vertices", advancedTexture);
+    moveVerts.top = "45%";
+    moveVerts.left = "18%";
+    moveVerts.onPointerDownObservable.add(() => {
+      // Toggle moveVertsActive mode when the button is clicked
+      if (vertexEditMode) {
+        setVertexEditMode(false);
+        // Dispose of all control points for vertex editing and clear the vertexcontrols array
+        vertexPoints.forEach((vertex) => vertex.dispose());
+        vertexPoints = [];
+      } else setVertexEditMode(true);
+    });
+
     return () => {
       window.removeEventListener("resize", resizeHandler);
       scene.dispose();
@@ -170,46 +222,6 @@ const ShapeShifter = () => {
   return (
     <div style={{ position: "relative" }}>
       <canvas ref={canvasRef} style={{ width: "100vw", height: "100vh" }} />
-      <div className="controls">
-        <button
-          className="ribbon-button"
-          onClick={() => { setDrawingMode(true); initialize.current = true; }}
-        >
-          Draw
-        </button>
-        <button
-          className="ribbon-button"
-          onClick={() => setExtrudingMode(true)}
-          disabled={!initialize.current}
-          style={{ backgroundColor: (!initialize.current) ? "red" : "" }}
-        >
-          Extrude
-        </button>
-        <button
-          className="ribbon-button"
-          onClick={() => setMoveMode((prev) => !prev)}
-          disabled={!initialize.current}
-          style={{ backgroundColor: (!initialize.current) ? "red" : "" }}
-        >
-          Move
-        </button>
-        <button
-          className="ribbon-button"
-          onClick={() =>
-            setVertexEditMode((prev) => {
-              if (prev) {
-                vertexPoints.forEach((vertex) => vertex.dispose());
-                vertexPoints = [];
-              }
-              return !prev;
-            })
-          }
-          disabled={!initialize.current}
-          style={{ backgroundColor: (!initialize.current) ? "red" : "" }}
-        >
-          Edit Vertex
-        </button>
-      </div>
     </div>
   );
 };
