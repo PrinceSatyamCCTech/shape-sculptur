@@ -18,7 +18,7 @@ const ShapeShifter = () => {
   const extrudingRef = useRef(extrudingMode);
   const moveRef = useRef(moveMode);
   const vertexEditRef = useRef(vertexEditMode);
-  const initialize = useRef(false);
+  let dragBehavior = useRef(null);
 
   useEffect(() => {
     drawingRef.current = drawingMode;
@@ -40,8 +40,11 @@ const ShapeShifter = () => {
   let extrudedShape = useRef(null);
 
   let drawingPoints = [];
+  let drawingPointsRev = [];
   let vertexPoints = [];
   let meshSphere = [];
+  let polygon = [];
+  let extrudedPolygons = [];
 
   useEffect(() => {
     const { scene, resizeHandler, engine } = Viewer(canvasRef);  // Pass canvasRef here
@@ -69,44 +72,49 @@ const ShapeShifter = () => {
         const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
         groundMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1);
         polygonShape.current.material = groundMaterial;
+        polygon.push(drawingPoints);
 
         meshSphere.forEach((sphere) => sphere.dispose());
+        drawingPoints = [];
         setDrawingMode(false);
       }
 
       // Extrude the polygon shape
-      if (extrudingRef.current && event.button === 0) {
-        const pickResult = scene.pick(scene.pointerX, scene.pointerY);
-        if (pickResult.hit && pickResult.pickedMesh === polygonShape.current) {
-          extrudedShape.current = BABYLON.MeshBuilder.ExtrudePolygon(
-            "extrudedShape",
-            { shape: drawingPoints, depth: 2, wrap: true, updatable: true },
-            scene,
-            earcut
-          );
-          extrudedShape.current.position.y = 2;
-
-          const extrudeMat = new BABYLON.StandardMaterial("Extruded Mesh Material", scene);
-          extrudeMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
-          extrudeMat.backFaceCulling = false;
-          extrudeMat.twoSidedLighting = true;
-          extrudedShape.current.material = extrudeMat;
-
-          polygonShape.current.dispose();
-          setExtrudingMode(false);
-        }
+      if (extrudingRef.current && polygon.length > 0) {
+        var count = 1;
+        polygon.forEach((dwgPoints) => {
+          if (!extrudedPolygons.includes(dwgPoints)) {
+            extrudedShape.current = BABYLON.MeshBuilder.ExtrudePolygon(
+              "extrudedShape"+count,
+              { shape: dwgPoints, depth: 2, wrap: true, updatable: true },
+              scene,
+              earcut
+            );
+            extrudedShape.current.position.y = 2;
+            extrudedPolygons.push(dwgPoints);
+  
+            const extrudeMat = new BABYLON.StandardMaterial("Extruded Mesh Material", scene);
+            extrudeMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
+            extrudeMat.backFaceCulling = false;
+            extrudeMat.twoSidedLighting = true;
+            extrudedShape.current.material = extrudeMat;
+            dwgPoints.forEach((pnts) => pnts.dispose);
+            count++;
+          }
+        });
+        setExtrudingMode(false);
       }
 
       // Move the extruded shape
       const pickResult = scene.pick(scene.pointerX, scene.pointerY);
-      if (pickResult.hit && pickResult.pickedMesh === extrudedShape.current && moveRef.current) {
+      if (pickResult.hit && moveRef.current) {
         pickResult.pickedMesh.addBehavior(new BABYLON.PointerDragBehavior({ dragPlaneNormal: BABYLON.Vector3.Up() }));
       } else if (pickResult.pickedMesh) {
         pickResult.pickedMesh.removeBehavior(new BABYLON.PointerDragBehavior({ dragPlaneNormal: BABYLON.Vector3.Up() }));
       }
 
       // Edit the vertices of the extruded shape
-      if (vertexEditRef.current) {
+      if (vertexEditMode) {
         const pickResult = scene.pick(scene.pointerX, scene.pointerY);
         if (pickResult.hit && pickResult.pickedMesh === extrudedShape.current && event.button === 0) {
           let verticesData = [];
@@ -174,8 +182,12 @@ const ShapeShifter = () => {
     draw.left = "-18%";
     // Toggle draw mode when the button is clicked
     draw.onPointerDownObservable.add(() => {
-      if(drawingMode) setDrawingMode(false);
-      else setDrawingMode(true);
+      if (drawingMode){
+        setDrawingMode(false);
+      }
+      else{
+        setDrawingMode(true);
+      }
     });
 
     // Create an "Extrude" button using the CreateButton function and attach it to the advanced texture
@@ -199,7 +211,7 @@ const ShapeShifter = () => {
     });
 
     // Create a "Move Vertices" button using the CustomButton function and attach it to the advanced texture
-    const moveVerts = CustomButton("Move Vertices", advancedTexture);
+    const moveVerts = CustomButton("Edit Vertices", advancedTexture);
     moveVerts.top = "45%";
     moveVerts.left = "18%";
     moveVerts.onPointerDownObservable.add(() => {
