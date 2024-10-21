@@ -1,7 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 
 const Viewer = (canvasRef) => {
-  // Initialize Babylon.js
+  // Initialize Babylon.js and create a viewer/scene
   const engine = new BABYLON.Engine(canvasRef.current, true);
   const scene = new BABYLON.Scene(engine);
 
@@ -35,7 +35,7 @@ const Viewer = (canvasRef) => {
   };
   window.addEventListener("resize", resizeHandler);
 
-  return { scene, resizeHandler, engine };  // Return the scene so it can be used in Viewer.jsx
+  return { scene, ground, resizeHandler, engine };
 };
 
 export default Viewer;

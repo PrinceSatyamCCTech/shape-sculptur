@@ -1,5 +1,6 @@
 import { AdvancedDynamicTexture, Button } from "@babylonjs/gui";
 
+// Create a button with the given name and add it to the GUI
 const CustomButton = (
   buttonName,
   gui = AdvancedDynamicTexture.CreateFullscreenUI(

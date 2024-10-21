@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import * as BABYLON from "@babylonjs/core";
 import * as GUI from "@babylonjs/gui";
 import earcut from "earcut";
@@ -9,156 +9,215 @@ import CustomButton from "./CustomButton";
 const ShapeShifter = () => {
   const canvasRef = useRef(null);
 
-  const [drawingMode, setDrawingMode] = useState(false);
-  const [extrudingMode, setExtrudingMode] = useState(false);
-  const [moveMode, setMoveMode] = useState(false);
-  const [vertexEditMode, setVertexEditMode] = useState(false);
+  // Variables to track different modes
+  let insideDrawMode = false;
+  let insideEditVertexMode = false;
+  let insideMoveMode = false;
+  let insideExtrudeMode = false;
+  let lastMovedMesh = null;
+  let model = null;
+  // PointerDragBehavior for mouse interactions
+  const pointerDrag = new BABYLON.PointerDragBehavior({
+    dragPlaneNormal: BABYLON.Vector3.Up(),
+  });
 
-  const drawingRef = useRef(drawingMode);
-  const extrudingRef = useRef(extrudingMode);
-  const moveRef = useRef(moveMode);
-  const vertexEditRef = useRef(vertexEditMode);
-  const initialize = useRef(false);
-
-  useEffect(() => {
-    drawingRef.current = drawingMode;
-  }, [drawingMode]);
-
-  useEffect(() => {
-    extrudingRef.current = extrudingMode;
-  }, [extrudingMode]);
+  // Function to change the button color based on the mode
+  const changeButtonColor = (button, mode) => {
+    button.background = mode ? "#041b8f" : "#002aff";
+  };
 
   useEffect(() => {
-    moveRef.current = moveMode;
-  }, [moveMode]);
 
-  useEffect(() => {
-    vertexEditRef.current = vertexEditMode;
-  }, [vertexEditMode]);
+    let meshesArr = [];
+    let positions = [];
+    let polygon = null;
+    let mesh = null;
+    let extrudeExtent = 2;
+    let vertexcontrols = [];
+    let polygonList = [];
+    let draw = null;
+    // Dictionary to store polygon objects and their coordinates
+    const polygonCoordinates = new Map();
 
-  let polygonShape = useRef(null);
-  let extrudedShape = useRef(null);
+    const { scene, ground, resizeHandler, engine } = Viewer(canvasRef);
+    // Create a material for the extruded mesh and set its properties
+    const extrudeMat = new BABYLON.StandardMaterial("Extruded Mesh Material", scene);
+    extrudeMat.diffuseColor = BABYLON.Color3.Red();
+    extrudeMat.backFaceCulling = false;
+    extrudeMat.twoSidedLighting = true;
 
-  let drawingPoints = [];
-  let vertexPoints = [];
-  let meshSphere = [];
+    // Create a default material that can be used for buffer shapes
+    const mat = new BABYLON.StandardMaterial("mat", scene);
+    mat.emissiveColor = BABYLON.Color3.Green();
 
-  useEffect(() => {
-    const { scene, resizeHandler, engine } = Viewer(canvasRef);  // Pass canvasRef here
     scene.onPointerDown = (event) => {
-      if (drawingRef.current && event.button === 0) {
-        const pickResult = scene.pick(scene.pointerX, scene.pointerY);
-        if (pickResult.hit) {
-          const point = pickResult.pickedPoint.clone();
-          const marker = BABYLON.MeshBuilder.CreateSphere("marker", { diameter: 0.2 }, scene);
-          meshSphere.push(marker);
-          marker.position = point;
-          drawingPoints.push(point);
-        }
-      }
+      const pickResult = scene.pick(scene.pointerX, scene.pointerY);
+
       // Create a polygon shape from the drawing points
-      if (drawingRef.current && event.button === 2 && drawingPoints.length >= 3) {
-        polygonShape.current = BABYLON.MeshBuilder.CreatePolygon(
-          "polygonShape",
-          { shape: drawingPoints },
-          scene,
-          earcut
-        );
-        polygonShape.current.position.y = 0.01;
-
-        const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
-        groundMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1);
-        polygonShape.current.material = groundMaterial;
-
-        meshSphere.forEach((sphere) => sphere.dispose());
-        setDrawingMode(false);
-      }
-
-      // Extrude the polygon shape
-      if (extrudingRef.current && event.button === 0) {
-        const pickResult = scene.pick(scene.pointerX, scene.pointerY);
-        if (pickResult.hit && pickResult.pickedMesh === polygonShape.current) {
-          extrudedShape.current = BABYLON.MeshBuilder.ExtrudePolygon(
-            "extrudedShape",
-            { shape: drawingPoints, depth: 2, wrap: true, updatable: true },
+      if (pickResult.faceId !== -1 && insideDrawMode) {
+        // extruded = false;
+        if (event.button === 0) {
+          const Mesh = BABYLON.MeshBuilder.CreateSphere(
+            "PlaceHolder",
+            { diameter: 0.15 },
+            scene
+          );
+          const point = pickResult.pickedPoint.clone();
+          try {
+            Mesh.position = pickResult.pickedPoint;
+            meshesArr.push(Mesh);
+            positions.push(new BABYLON.Vector2(Mesh.position._x, Mesh.position._z));
+            polygonList.push(point);
+          } catch (error) {
+            console.error(error);
+          }
+        }
+        if (event.button === 2) {
+          if (positions.length < 3) {
+            alert("Sorry dude, atleast atleast 3 points are required to create a polygon");
+            positions = [];
+            meshesArr.forEach((mesh) => mesh.dispose());
+            meshesArr = [];
+          }
+          // Right-click to Complete the shape and create a polygon mesh
+          const newPolygon = new BABYLON.PolygonMeshBuilder(
+            "polygon",
+            positions,
             scene,
             earcut
           );
-          extrudedShape.current.position.y = 2;
+          polygon = newPolygon.build();
+          polygon.position.y = 0.01;
+          polygon.material = mat;
+          polygonCoordinates.set(polygon, [polygonList, 0]);
+          const len = meshesArr.length;
+          for (let i = 0; i < len; i++) {
+            meshesArr[i]?.dispose();
+            if (i === len - 1) {
+              meshesArr = [];
+            }
+          }
+          polygonList = [];
+          positions = [];
+        }
+      }
 
+      // Extrude the polygon shape
+      if (insideExtrudeMode && pickResult.pickedMesh != ground && pickResult.faceId != -1 && event.button === 0) {
+        polygonCoordinates.forEach((polygonProps, polygon) => { 
+          if (polygonCoordinates.get(polygon)[1] === 1) return;
+          mesh = BABYLON.MeshBuilder.ExtrudePolygon(
+            "Extruded Mesh Material",
+            {
+              shape: polygonProps[0],
+              depth: extrudeExtent,
+              sideOrientation: 1,
+              wrap: true,
+              updatable: true,
+            },
+            scene,
+            earcut
+          );
+          // extruded = true;
+          polygonCoordinates.get(polygon)[1] = 1;
           const extrudeMat = new BABYLON.StandardMaterial("Extruded Mesh Material", scene);
           extrudeMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
           extrudeMat.backFaceCulling = false;
           extrudeMat.twoSidedLighting = true;
-          extrudedShape.current.material = extrudeMat;
-
-          polygonShape.current.dispose();
-          setExtrudingMode(false);
-        }
+          mesh.material = extrudeMat;
+          mesh.position.y = extrudeExtent;
+          polygon.dispose();
+          polygonProps[0].forEach((pnts) => pnts.dispose);
+          // insideExtrudeMode = false;
+        });
       }
 
       // Move the extruded shape
-      const pickResult = scene.pick(scene.pointerX, scene.pointerY);
-      if (pickResult.hit && pickResult.pickedMesh === extrudedShape.current && moveRef.current) {
-        pickResult.pickedMesh.addBehavior(new BABYLON.PointerDragBehavior({ dragPlaneNormal: BABYLON.Vector3.Up() }));
-      } else if (pickResult.pickedMesh) {
-        pickResult.pickedMesh.removeBehavior(new BABYLON.PointerDragBehavior({ dragPlaneNormal: BABYLON.Vector3.Up() }));
+      if (pickResult.faceId != -1 && pickResult.pickedMesh != ground) {
+        if (insideMoveMode){
+          // Remove drag behavior from the last moved mesh if it exists
+          if (lastMovedMesh && lastMovedMesh !== pickResult.pickedMesh) lastMovedMesh.removeBehavior(pointerDrag);
+          pickResult.pickedMesh.addBehavior(pointerDrag);
+          lastMovedMesh = pickResult.pickedMesh;
+        }
+        else pickResult.pickedMesh.removeBehavior(pointerDrag);
       }
 
       // Edit the vertices of the extruded shape
-      if (vertexEditRef.current) {
-        const pickResult = scene.pick(scene.pointerX, scene.pointerY);
-        if (pickResult.hit && pickResult.pickedMesh === extrudedShape.current && event.button === 0) {
-          let verticesData = [];
-          const sharedVertices = new Map();
-          const uniqueVertices = [];
-          let originalVertexData = extrudedShape.current.getVerticesData(BABYLON.VertexBuffer.PositionKind);
-          const worldMatrix = extrudedShape.current.getWorldMatrix();
-
-          for (let i = 0; i < originalVertexData.length; i += 3) {
-            const originalVertex = new BABYLON.Vector3(
-              originalVertexData[i],
-              originalVertexData[i + 1],
-              originalVertexData[i + 2]
-            );
-            verticesData.push(originalVertex.asArray());
-          }
-
-          verticesData.forEach((vertex, index) => {
-            const key = vertex.join(" ");
-            if (sharedVertices.has(key)) {
-              sharedVertices.set(key, [...sharedVertices.get(key), index]);
-            } else {
-              sharedVertices.set(key, [index]);
-              const transformedVertex = BABYLON.Vector3.TransformCoordinates(
-                BABYLON.Vector3.FromArray(vertex),
-                worldMatrix
-              ).asArray();
-              uniqueVertices.push({ vertex: transformedVertex, key });
-            }
-          });
-
-          uniqueVertices.forEach(({ vertex, key }) => {
-            const indices = sharedVertices.get(key);
-            const pointerDrag = new BABYLON.PointerDragBehavior();
-
-            pointerDrag.onDragObservable.add((info) => {
-              indices.forEach((index) => {
-                verticesData[index] = BABYLON.Vector3.FromArray(verticesData[index])
-                  .add(info.delta)
-                  .asArray();
-              });
-
-              extrudedShape.current.updateVerticesData(BABYLON.VertexBuffer.PositionKind, verticesData.flat());
-            });
-
-            const sphere = BABYLON.MeshBuilder.CreateSphere("vertexSphere", { diameter: 0.3 }, scene);
-            sphere.position = BABYLON.Vector3.FromArray(vertex);
-            pointerDrag.dragDeltaRatio = 1;
-            sphere.addBehavior(pointerDrag);
-            vertexPoints.push(sphere);
-          });
+      if (insideEditVertexMode && pickResult.pickedMesh != ground && pickResult.faceId != -1
+        && event.button === 0 && !pickResult.pickedMesh.name.includes("vertexcontrol")) {
+        if (model) {
+          model = null;
+          vertexcontrols.forEach((control) => control.dispose());
+          vertexcontrols = [];
         }
+        model = pickResult.pickedMesh;
+        const transformation = model.getWorldMatrix();
+        // Extract the vertices data of the model and group them into a 2D array
+        let vertices = model
+          .getVerticesData(BABYLON.VertexBuffer.PositionKind)
+          .reduce((all, one, i) => {
+            const ch = Math.floor(i / 3);
+            all[ch] = [].concat(all[ch] ?? [], one);
+            return all;
+          }, []);
+
+        // Create a shared map to store indices of identical vertices and an array to store unique vertices
+        const shared = new Map();
+        const unique = [];
+
+        // Loop through each vertex, transform it, and store unique vertices in the shared map and unique array
+        vertices.forEach((vertex, index) => {
+          const key = vertex.join(" ");
+          if (shared.has(key)) {
+            shared.set(key, [...shared.get(key), index]);
+          } else {
+            shared.set(key, [index]);
+            unique.push({
+              vertex: BABYLON.Vector3.TransformCoordinates(
+                BABYLON.Vector3.FromArray(vertex),
+                transformation
+              ).asArray(),
+              key,
+            });
+          }
+        });
+
+        // Loop through unique vertices and create draggable spheres (control points) for vertex editing
+        unique.forEach(({ vertex, key }) => {
+          const indices = shared.get(key);
+
+          // Create a PointerDragBehavior for each control point
+          const behaviour = new BABYLON.PointerDragBehavior();
+          behaviour.dragDeltaRatio = 1;
+          behaviour.onDragObservable.add((info) => {
+            // When the control point is dragged, update the corresponding vertices of the mesh
+            indices.forEach((index) => {
+              vertices[index] = BABYLON.Vector3.FromArray(vertices[index])
+                .add(info.delta)
+                .asArray();
+            });
+            model.updateVerticesData(
+              BABYLON.VertexBuffer.PositionKind,
+              vertices.flat()
+            );
+          });
+
+          // Create a sphere (control point) for vertex editing
+          const draggable = BABYLON.MeshBuilder.CreateSphere(
+            `vertexcontrol-${indices.join("_")}`,
+            {
+              diameter: 0.25,
+              updatable: true,
+            },
+            scene
+          );
+          draggable.position = BABYLON.Vector3.FromArray(vertex);
+          draggable.addBehavior(behaviour);
+
+          // Add the control point to the vertexcontrols array
+          vertexcontrols.push(draggable);
+        });
       }
     };
 
@@ -169,13 +228,17 @@ const ShapeShifter = () => {
       scene
     );
 
-    const draw = CustomButton("Draw", advancedTexture);
+    draw = CustomButton("Draw", advancedTexture);
     draw.top = "45%";
     draw.left = "-18%";
     // Toggle draw mode when the button is clicked
     draw.onPointerDownObservable.add(() => {
-      if(drawingMode) setDrawingMode(false);
-      else setDrawingMode(true);
+      if (insideDrawMode) insideDrawMode = false;
+      else insideDrawMode = true;
+      // Clear the positions array used for shape drawing
+      positions = [];
+      // Change button color
+      changeButtonColor(draw, insideDrawMode);    
     });
 
     // Create an "Extrude" button using the CreateButton function and attach it to the advanced texture
@@ -183,9 +246,11 @@ const ShapeShifter = () => {
     extrudeButton.top = "45%";
     extrudeButton.left = "-95";
     extrudeButton.onPointerDownObservable.add(() => {
-      // Toggle extrudeActive mode when the button is clicked
-      if (extrudingMode) setExtrudingMode(false);
-      else setExtrudingMode(true);
+      // Toggle insideExtrudeMode mode when the button is clicked
+      if (insideExtrudeMode) insideExtrudeMode = false;
+      else insideExtrudeMode = true;
+      // Change button color
+      changeButtonColor(extrudeButton, insideExtrudeMode);
     });
 
     // Create a "Move" button using the CustomButton function and attach it to the advanced texture
@@ -193,9 +258,11 @@ const ShapeShifter = () => {
     move.top = "45%";
     move.left = "6%";
     move.onPointerDownObservable.add(() => {
-      // Toggle moveActive mode when the button is clicked
-      if (moveMode) setMoveMode(false);
-      else setMoveMode(true);
+      // Toggle insideMoveMode mode when the button is clicked
+      if (insideMoveMode) insideMoveMode = false;
+      else insideMoveMode = true;
+      // Change button color
+      changeButtonColor(move, insideMoveMode);
     });
 
     // Create a "Move Vertices" button using the CustomButton function and attach it to the advanced texture
@@ -203,13 +270,25 @@ const ShapeShifter = () => {
     moveVerts.top = "45%";
     moveVerts.left = "18%";
     moveVerts.onPointerDownObservable.add(() => {
-      // Toggle moveVertsActive mode when the button is clicked
-      if (vertexEditMode) {
-        setVertexEditMode(false);
-        // Dispose of all control points for vertex editing and clear the vertexcontrols array
-        vertexPoints.forEach((vertex) => vertex.dispose());
-        vertexPoints = [];
-      } else setVertexEditMode(true);
+      // Toggle insideEditVertexMode mode when the button is clicked
+      if (insideEditVertexMode) {
+      insideEditVertexMode = false;
+      model = null;
+      // Dispose of all control points for vertex editing and clear the vertexcontrols array
+      vertexcontrols.forEach((control) => control.dispose());
+      vertexcontrols = [];
+      } else insideEditVertexMode = true;
+      // Change button color
+      changeButtonColor(moveVerts, insideEditVertexMode);
+    });
+
+    // Rendering loop
+    engine.runRenderLoop(() => {
+      scene.render();
+    });
+
+    window.addEventListener("resize", () => {
+      engine.resize();
     });
 
     return () => {
