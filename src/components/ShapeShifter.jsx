@@ -71,9 +71,7 @@ const ShapeShifter = () => {
         if (event.button === 2) {
           if (positions.length < 3) {
             alert("Sorry dude, atleast atleast 3 points are required to create a polygon");
-            positions = [];
-            meshesArr.forEach((mesh) => mesh.dispose());
-            meshesArr = [];
+            return;
           }
           // Right-click to Complete the shape and create a polygon mesh
           const newPolygon = new BABYLON.PolygonMeshBuilder(
@@ -100,8 +98,10 @@ const ShapeShifter = () => {
     };
 
     // Extrude the polygon shape
-    const handleExtrudeMode = (event, pickResult) => {
-      if (insideExtrudeMode && pickResult.pickedMesh != ground && pickResult.faceId != -1 && event.button === 0) {
+    const handleExtrudeMode = () => {
+      // if (insideExtrudeMode && pickResult.pickedMesh != ground && pickResult.faceId != -1 && event.button === 0)
+      if (insideExtrudeMode) 
+      {
         polygonCoordinates.forEach((polygonProps, polygon) => { 
           if (polygonCoordinates.get(polygon)[1] === 0){
             mesh = BABYLON.MeshBuilder.ExtrudePolygon(
@@ -243,6 +243,7 @@ const ShapeShifter = () => {
     extrudeButton.onPointerDownObservable.add(() => {
       insideExtrudeMode = !insideExtrudeMode;
       changeButtonColor(extrudeButton, insideExtrudeMode);
+      if (insideExtrudeMode) handleExtrudeMode();
     });
 
     const move = CustomButton("Move", advancedTexture);
