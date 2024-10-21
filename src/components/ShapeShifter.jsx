@@ -105,30 +105,31 @@ const ShapeShifter = () => {
       // Extrude the polygon shape
       if (insideExtrudeMode && pickResult.pickedMesh != ground && pickResult.faceId != -1 && event.button === 0) {
         polygonCoordinates.forEach((polygonProps, polygon) => { 
-          if (polygonCoordinates.get(polygon)[1] === 1) return;
-          mesh = BABYLON.MeshBuilder.ExtrudePolygon(
-            "Extruded Mesh Material",
-            {
-              shape: polygonProps[0],
-              depth: extrudeExtent,
-              sideOrientation: 1,
-              wrap: true,
-              updatable: true,
-            },
-            scene,
-            earcut
-          );
-          // extruded = true;
-          polygonCoordinates.get(polygon)[1] = 1;
-          const extrudeMat = new BABYLON.StandardMaterial("Extruded Mesh Material", scene);
-          extrudeMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
-          extrudeMat.backFaceCulling = false;
-          extrudeMat.twoSidedLighting = true;
-          mesh.material = extrudeMat;
-          mesh.position.y = extrudeExtent;
-          polygon.dispose();
-          polygonProps[0].forEach((pnts) => pnts.dispose);
-          // insideExtrudeMode = false;
+          if (polygonCoordinates.get(polygon)[1] === 0){
+            mesh = BABYLON.MeshBuilder.ExtrudePolygon(
+              "Extruded Mesh Material",
+              {
+                shape: polygonProps[0],
+                depth: extrudeExtent,
+                sideOrientation: 1,
+                wrap: true,
+                updatable: true,
+              },
+              scene,
+              earcut
+            );
+            // extruded = true;
+            polygonCoordinates.get(polygon)[1] = 1;
+            const extrudeMat = new BABYLON.StandardMaterial("Extruded Mesh Material", scene);
+            extrudeMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
+            extrudeMat.backFaceCulling = false;
+            extrudeMat.twoSidedLighting = true;
+            mesh.material = extrudeMat;
+            mesh.position.y = extrudeExtent;
+            polygon.dispose();
+            polygonProps[0].forEach((pnts) => pnts.dispose);
+            // insideExtrudeMode = false;
+          }
         });
       }
 
